@@ -90,6 +90,7 @@ class SynapseClient:
             console.print(f"\n[bold cyan]🤖 Agent Request:[/bold cyan]")
             console.print(f"   [yellow]Tool:[/yellow] {tool_name}")
             console.print(f"   [yellow]Args:[/yellow] {tool_args}")
-            
+        elif msg_type in ["cf_agent_mcp_servers", "host_status"]:
+            pass
         else:
             log.info(f"Received unknown message: {data}")

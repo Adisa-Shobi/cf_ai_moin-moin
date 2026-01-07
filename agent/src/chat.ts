@@ -1,33 +1,32 @@
 import { env } from "cloudflare:workers";
-import type { Connection, ConnectionContext, Schedule } from "agents";
+import type { Connection, ConnectionContext, WSMessage } from "agents";
 import { AIChatAgent } from "agents/ai-chat-agent";
-import { getSchedulePrompt } from "agents/schedule";
+// import { getSchedulePrompt } from "agents/schedule";
 import {
 	convertToModelMessages,
 	createUIMessageStream,
 	createUIMessageStreamResponse,
-  generateId,
 	type StreamTextOnFinishCallback,
 	stepCountIs,
 	streamText,
 	type ToolSet,
+  tool,
 } from "ai";
 import { createWorkersAI } from "workers-ai-provider";
-import { executions, tools } from "./tools";
-import { type AgentEvent, HostMessageSchema } from "./types";
+import z from "zod";
+import { executions } from "./tools";
+import { type AgentEvent, type AgentState, HostMessageSchema, type ToolArguments, type ToolName, toolArgSchemas } from "./types";
 import { cleanupMessages, processToolCalls } from "./utils";
 
 const workersAi = createWorkersAI({ binding: env.AI });
 
 const model = workersAi("@cf/meta/llama-3.1-8b-instruct-fp8");
 
-export class Chat extends AIChatAgent<Env> {
-	hostConnection: WebSocket | null = null;
-	guestConnections: WebSocket[] = [];
 
-	pendingToolCalls = new Map<string, (output: string) => void>();
 
-  
+export class Chat extends AIChatAgent<Env, AgentState> {
+
+  pendingToolCalls = new Map<string, (output: string) => void>();
 
 	onConnect(connection: Connection, ctx: ConnectionContext): void | Promise<void> {
     const url = new URL(ctx.request.url);
@@ -35,7 +34,11 @@ export class Chat extends AIChatAgent<Env> {
 
     if (role === "host") {
       console.log("🔌 HOST Connected (Python CLI)");
-      this.hostConnection = connection;
+
+      this.setState({
+        ...this.state,
+        hostConnectionId: connection.id
+      });
 
       this.agentBroadcast({ type: "host_status", status: "online" });
 
@@ -65,7 +68,10 @@ export class Chat extends AIChatAgent<Env> {
 
       connection.addEventListener("close", () => {
         console.log("🔌 HOST Disconnected");
-        this.hostConnection = null;
+        this.setState({
+          ...this.state,
+          hostConnectionId: null
+        })
         this.agentBroadcast({ type: "host_status", status: "offline" });
       });
 
@@ -73,15 +79,24 @@ export class Chat extends AIChatAgent<Env> {
     } 
     
     else if (role === "guest") {
-      this.guestConnections.push(connection);
+      const newGuestConnectionIds = this.state.guestConnectionIds ?? []
+      newGuestConnectionIds.push(connection.id)
+      this.setState({
+        ...this.state,
+        guestConnectionIds: newGuestConnectionIds
+      });
       
       // Remove guest when they leave
       connection.addEventListener("close", () => {
-        this.guestConnections = this.guestConnections.filter(c => c !== connection);
+        const filteredGuestConnectionsIds = this.state.guestConnectionIds.filter(c => c !== connection.id);
+        this.setState({
+          ...this.state,
+          guestConnectionIds: filteredGuestConnectionsIds
+        })
       });
 
       // Send immediate status
-      if (this.hostConnection) {
+      if (connection) {
         connection.send(JSON.stringify({ type: "host_status", status: "online" }));
       }
       
@@ -90,17 +105,107 @@ export class Chat extends AIChatAgent<Env> {
   }
 
   agentBroadcast(msg: AgentEvent) {
-    this.guestConnections = this.guestConnections.filter(
-      (ws) => ws.readyState === WebSocket.OPEN
-    );
+    this.setState({
+      ...this.state,
+      guestConnectionIds: this.state.guestConnectionIds.filter(
+        (id) => {
+          const ws = this.getConnection(id)
+          return ws?.readyState === WebSocket.OPEN
+        }
+      )
+    })
 
-    this.guestConnections.forEach((ws) => {
+    this.state.guestConnectionIds.forEach((id) => {
       try {
+        const ws = this.getConnection(id);
+        if (!ws) throw new Error()
         ws.send(JSON.stringify(msg));
       } catch (err) {
         console.error("Broadcast failed for one client", err);
       }
     });
+  }
+
+  getTools() {
+    return {
+      // 1. GIT STATUS
+      git_status: tool({
+        description: "Check the current status of the git repository. Returns changed files.",
+        inputSchema: z.object({}), // No args needed
+        execute: async (_args) => {
+          return await this.executeRemoteTool("git_status", {});
+        },
+      }),
+
+      // 2. GIT DIFF
+      git_diff: tool({
+        description: "Get the specific changes (diff) of the current repository.",
+        inputSchema: z.object({}),
+        execute: async (_args) => {
+          return await this.executeRemoteTool("git_diff", {});
+        },
+      }),
+
+      // 3. READ FILE
+      read_file: tool({
+        description: "Read the contents of a specific file.",
+        inputSchema: z.object({
+          path: z.string().describe("The relative path to the file (e.g., src/index.ts)"),
+        }),
+        execute: async (args) => {
+          return await this.executeRemoteTool("read_file", args);
+        },
+      }),
+
+      // 4. WRITE FILE (Optional - use with caution!)
+      write_file: tool({
+        description: "Write or overwrite content to a file.",
+        inputSchema: z.object({
+          path: z.string().describe("The relative path to the file"),
+          content: z.string().describe("The full content to write"),
+        }),
+        execute: async (args) => {
+          return await this.executeRemoteTool("write_file", args);
+        },
+      }),
+
+      // 5. GENERIC COMMAND RUNNER
+      run_command: tool({
+        description: "Execute a generic shell command (e.g., ls, mkdir, pytest).",
+        inputSchema: z.object({
+          command: z.string().describe("The shell command to run"),
+        }),
+        execute: async (args) => {
+          return await this.executeRemoteTool("run_command", args);
+        },
+      }),
+    };
+  }
+
+  onMessage(connection: Connection, message: WSMessage): void | Promise<void> {
+    try {
+      const rawData = JSON.parse(message as string);
+      const result = HostMessageSchema.safeParse(rawData);
+
+      if (!result.success) {
+        console.error("Invalid Host Message:", result.error.format());
+        return;
+      }
+
+      const msg = result.data;
+      
+      if (msg.type === "tool_result" && this.pendingToolCalls.has(msg.call_id)) {
+        
+        const resolve = this.pendingToolCalls.get(msg.call_id);
+        
+        if (resolve) resolve(msg.output);
+        
+        this.pendingToolCalls.delete(msg.call_id);
+      }
+    } catch (err) {
+      console.error("Error processing host message:", err);
+    }
+    return super.onMessage(connection, message)
   }
 
 	/**
@@ -110,15 +215,7 @@ export class Chat extends AIChatAgent<Env> {
 	    onFinish: StreamTextOnFinishCallback<ToolSet>,
 	    _options?: { abortSignal?: AbortSignal }
 	  ) {
-	    // const mcpConnection = await this.mcp.connect(
-	    //   "https://path-to-mcp-server/sse"
-	    // );
-
-	    // Collect all tools, including MCP tools
-	    const allTools = {
-	      ...tools,
-	      // ...this.mcp.getAITools()
-	    };
+	    const allTools = this.getTools();
 
 	    const stream = createUIMessageStream({
 	      execute: async ({ writer }) => {
@@ -135,12 +232,7 @@ export class Chat extends AIChatAgent<Env> {
 	        });
 
 	        const result = streamText({
-	          system: `You are a helpful assistant that can do various tasks...
-
-	${getSchedulePrompt({ date: new Date() })}
-
-	If the user asks to schedule a task, use the schedule tool to schedule the task.
-	`,
+	          system: ``,
 
 	          messages: convertToModelMessages(processedMessages),
 	          model,
@@ -160,23 +252,46 @@ export class Chat extends AIChatAgent<Env> {
 	    return createUIMessageStreamResponse({ stream });
 	  }
 
+    async executeRemoteTool(name: ToolName, args: ToolArguments): Promise<string> {
+      const hostConnectionId = this.state.hostConnectionId;
+      if (!hostConnectionId) return "Error: No Host CLI connected.";
 
-    async executeTask(description: string, _task: Schedule<string>) {
-    await this.saveMessages([
-      ...this.messages,
-      {
-        id: generateId(),
-        role: "user",
-        parts: [
-          {
-            type: "text",
-            text: `Running scheduled task: ${description}`
-          }
-        ],
-        metadata: {
-          createdAt: new Date()
-        }
+      
+      const connection = this.getConnection(hostConnectionId)
+      
+      if (!connection) return "Error: No Host CLI connection found.";
+      
+      const call_id = crypto.randomUUID();
+
+      // Validate args using the appropriate schema
+      const schema = toolArgSchemas[name];
+      const validationResult = schema.safeParse(args);
+      if (!validationResult.success) {
+          console.error(`Invalid arguments for tool '${name}':`, validationResult.error.format());
+          return `Error: Invalid arguments for tool '${name}': ${validationResult.error.message}`;
       }
-    ]);
+
+      this.agentBroadcast({ type: "tool_pending", tool: name, status: "waiting_for_approval" });
+
+      connection.send(JSON.stringify({ 
+        type: "tool_call", 
+        call_id, 
+        name, 
+        arguments: args 
+      }));
+
+      return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          if (this.pendingToolCalls.delete(call_id)) {
+            reject(new Error("Tool execution timed out"));
+          }
+        }, 600000);
+
+        this.pendingToolCalls.set(call_id, (output: string) => {
+          clearTimeout(timeout);
+          this.agentBroadcast({ type: "tool_complete", tool: name });
+          resolve(output);
+        });
+      });
   }
 }

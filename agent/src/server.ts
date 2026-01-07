@@ -7,7 +7,9 @@ const app = new Hono<{ Bindings: Env }>()
 
 app.post("/api/new-session", async (c) => {
 
-  const sessionId = crypto.randomUUID();
+  // const sessionId = crypto.randomUUID();
+  // const sessionId = c.env.Chat.newUniqueId().toString()
+  const sessionId = "default"
   const urlObj = new URL(c.req.url);
 
   const protocol = urlObj.protocol === "https:" ? "wss" : "ws";

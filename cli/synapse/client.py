@@ -6,6 +6,8 @@ from rich.console import Console
 from rich.logging import RichHandler
 import logging
 
+from .dispatcher import ToolDispatcher
+
 # Setup beautiful logging
 logging.basicConfig(
     level="INFO", format="%(message)s", datefmt="[%X]", handlers=[RichHandler()]
@@ -18,6 +20,7 @@ class SynapseClient:
         self.base_url = base_url
         self.session_id = None
         self.websocket_url: str | None = None
+        self.dispatcher = ToolDispatcher()
 
     def get_session(self):
         """Get a new session ID and WebSocket URL from the server."""
@@ -29,6 +32,7 @@ class SynapseClient:
             data = response.json()
             self.session_id = data.get("sessionId")
             self.websocket_url = data.get("url")
+            self.websocket_url = f"{self.websocket_url}?role=host"
             if not self.session_id or not self.websocket_url:
                 log.error("Failed to get session ID or WebSocket URL from the server.")
                 return False
@@ -74,23 +78,44 @@ class SynapseClient:
         async for message in websocket:
             try:
                 data = json.loads(message)
-                self.handle_message(data)
+                await self.handle_message(data, websocket)
             except json.JSONDecodeError:
                 log.error("Received invalid JSON")
 
-    def handle_message(self, data):
+    async def handle_message(self, data, websocket):
         """Router for incoming message types."""
         msg_type = data.get("type")
 
         if msg_type == "tool_call":
-            # Just logging for now (Milestone 1)
-            tool_name = data.get("tool")
-            tool_args = data.get("args")
+            print(data)
+            tool_name = data.get("name")
+            tool_args = data.get("arguments")
+            tool_call_id = data.get("call_id")
             
             console.print(f"\n[bold cyan]🤖 Agent Request:[/bold cyan]")
             console.print(f"   [yellow]Tool:[/yellow] {tool_name}")
             console.print(f"   [yellow]Args:[/yellow] {tool_args}")
+            
+            # Execute the tool
+            output = self.dispatcher.dispatch(tool_name, tool_args or {})
+            
+            # Determine status
+            status = "error" if output.strip().startswith("Error:") else "success"
+            
+            # Send result back
+            result = {
+                "type": "tool_result",
+                "call_id": tool_call_id,
+                "status": status,
+                "output": output,
+            }
+            await websocket.send(json.dumps(result))
+            console.print(f"\n[bold green]✅ Result Sent:[/bold green]")
+            console.print(f"   [yellow]Tool:[/yellow] {tool_name}")
+            console.print(f"   [yellow]Status:[/yellow] {status}")
+
         elif msg_type in ["cf_agent_mcp_servers", "host_status"]:
             pass
         else:
-            log.info(f"Received unknown message: {data}")
+            pass
+            # log.info(f"Received unknown message: {data}")

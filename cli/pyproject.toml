@@ -1,0 +1,22 @@
+[project]
+name = "synapse"
+version = "0.1.0"
+description = "A cli tool for remote agent changes"
+authors = [
+    {name = "Shobi",email = "s.olaadisa@alustudent.com"}
+]
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "websockets (>=15.0.1,<16.0.0)",
+    "click (>=8.3.1,<9.0.0)",
+    "rich (>=14.2.0,<15.0.0)",
+    "requests (>=2.32.5,<3.0.0)"
+]
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+synapse = "synapse.main:cli"

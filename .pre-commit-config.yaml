@@ -3,3 +3,4 @@ repos:
     rev: v2.3.10 # Use the sha / tag you want to point at
     hooks:
       - id: biome-check
+        file: ^agent/

@@ -18,20 +18,20 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Avatar } from "@/components/avatar/Avatar";
 // Component imports
 import { Button } from "@/components/button/Button";
+import { ContextPanel } from "@/components/ContextPanel";
 import { Card } from "@/components/card/Card";
 import { MemoizedMarkdown } from "@/components/memoized-markdown";
 import { Textarea } from "@/components/textarea/Textarea";
 import { Toggle } from "@/components/toggle/Toggle";
 import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
+import { useContextEvents } from "@/hooks/useContextEvents";
 import { ClientStatus, type HostStatus } from "./components/status-bar/ClientStatus";
 import type { tools } from "./tools";
 
 // List of tools that require human confirmation
 // NOTE: this should match the tools that don't have execute functions in tools.ts
 // TODO: Configure tools with proper permissions
-const toolsRequiringConfirmation: (keyof typeof tools)[] = [
-  "getWeatherInformation"
-];
+const toolsRequiringConfirmation: (keyof typeof tools)[] = [];
 
 export default function Chat() {
   const [theme, setTheme] = useState<"dark" | "light">(() => {
@@ -42,6 +42,8 @@ export default function Chat() {
   const [showDebug, setShowDebug] = useState(false);
   const [textareaHeight, setTextareaHeight] = useState("auto");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const { contextFiles } = useContextEvents();
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -161,9 +163,12 @@ export default function Chat() {
   };
 
   return (
-    <div className="h-[100vh] w-full p-4 flex justify-center items-center bg-fixed overflow-hidden">
-      <div className="h-[calc(100vh-2rem)] w-full mx-auto max-w-lg flex flex-col shadow-xl rounded-md overflow-hidden relative border border-neutral-300 dark:border-neutral-800">
-        <div className="px-4 py-3 border-b border-neutral-300 dark:border-neutral-800 flex items-center gap-3 sticky top-0 z-10">
+    <div className="h-screen w-full flex bg-neutral-50 dark:bg-neutral-950 overflow-hidden">
+      <div className={`
+          flex flex-col h-full transition-all duration-300 relative bg-white dark:bg-neutral-950
+          ${contextFiles.length > 0 ? "w-full lg:w-1/2 xl:w-[45%] border-r border-neutral-300 dark:border-neutral-800" : "w-full max-w-3xl mx-auto border-x border-neutral-300 dark:border-neutral-800"}
+      `}>
+        <div className="px-4 py-3 border-b border-neutral-300 dark:border-neutral-800 flex items-center gap-3 sticky top-0 z-10 bg-white dark:bg-neutral-950">
           <div className="flex items-center justify-center h-8 w-8">
             <svg
               width="28px"
@@ -218,7 +223,7 @@ export default function Chat() {
         <ClientStatus status={cliStatus} />
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24 max-h-[calc(100vh-10rem)]">
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24 max-h-[calc(100vh-10rem)] scroll-smooth">
           {agentMessages.length === 0 && (
             <div className="h-full flex items-center justify-center">
               <Card className="p-6 max-w-md mx-auto bg-neutral-100 dark:bg-neutral-900">
@@ -434,6 +439,13 @@ export default function Chat() {
           </div>
         </form>
       </div>
+      
+      {/* Right Panel: Context */}
+      {contextFiles.length > 0 && (
+        <div className="hidden lg:flex flex-1 flex-col h-full overflow-hidden bg-white dark:bg-neutral-950">
+           <ContextPanel files={contextFiles} />
+        </div>
+      )}
     </div>
   );
 }

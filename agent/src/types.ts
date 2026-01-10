@@ -98,6 +98,8 @@ export const toolArgSchemas = {
 
 export type ToolNameArgs = keyof typeof toolArgSchemas;
 
+export type readFileArgs = z.infer<typeof toolArgSchemas[typeof TOOLS.READ_FILE]>
+
 export type ToolArguments = 
   | z.infer<typeof toolArgSchemas[typeof TOOLS.GIT_STATUS]>
   | z.infer<typeof toolArgSchemas[typeof TOOLS.READ_FILE]>

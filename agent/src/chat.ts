@@ -14,7 +14,7 @@ import {
 } from "ai";
 import { createWorkersAI } from "workers-ai-provider";
 import { executions } from "./tools";
-import { type AgentEvent, type AgentState, type ChatAgentContext, HostMessageSchema, TOOLS, type ToolArguments, type ToolName, type ToolNameArgs, toolArgSchemas } from "./types";
+import { type AgentEvent, type AgentState, type ChatAgentContext, HostMessageSchema, type readFileArgs, TOOLS, type ToolArguments, type ToolName, type ToolNameArgs, toolArgSchemas } from "./types";
 import { cleanupMessages, processToolCalls } from "./utils";
 
 const workersAi = createWorkersAI({ binding: env.AI });
@@ -175,7 +175,7 @@ export class Chat extends AIChatAgent<Env, AgentState> {
         description: "",
         inputSchema: toolArgSchemas[TOOLS.ADD_CONTEXT],
         execute: async (args) => {
-          this.addAgentContext(args)
+          this.updateContext(args)
         }
       })
     };
@@ -195,10 +195,11 @@ export class Chat extends AIChatAgent<Env, AgentState> {
         
         if (pending) {
           if (pending.tool === TOOLS.READ_FILE && msg.status === "success") {
+            const args = pending.args as readFileArgs;
             this.updateContext({
-              id: pending.args.path,
+              id: args.path,
               type: "file",
-              title: pending.args.path,
+              title: args.path,
               content: msg.output,
               updatedAt: Date.now()
             })

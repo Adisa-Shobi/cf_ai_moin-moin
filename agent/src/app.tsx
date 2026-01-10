@@ -4,7 +4,6 @@ import type { UIMessage } from "@ai-sdk/react";
 // Icon imports
 import {
   Bug,
-  Circle, 
   Moon,
   PaperPlaneTilt,
   Robot,

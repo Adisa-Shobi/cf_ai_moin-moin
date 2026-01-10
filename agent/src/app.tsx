@@ -4,6 +4,7 @@ import type { UIMessage } from "@ai-sdk/react";
 // Icon imports
 import {
   Bug,
+  Circle, 
   Moon,
   PaperPlaneTilt,
   Robot,
@@ -23,11 +24,12 @@ import { MemoizedMarkdown } from "@/components/memoized-markdown";
 import { Textarea } from "@/components/textarea/Textarea";
 import { Toggle } from "@/components/toggle/Toggle";
 import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
+import { ClientStatus, type HostStatus } from "./components/status-bar/ClientStatus";
 import type { tools } from "./tools";
 
 // List of tools that require human confirmation
 // NOTE: this should match the tools that don't have execute functions in tools.ts
-// TODO: COnfigure tools with proper permissions
+// TODO: Configure tools with proper permissions
 const toolsRequiringConfirmation: (keyof typeof tools)[] = [
   "getWeatherInformation"
 ];
@@ -74,6 +76,29 @@ export default function Chat() {
     agent: "chat"
   });
 
+  const [cliStatus, setCliStatus] = useState<HostStatus>("offline");
+
+  useEffect(() => {
+    // Define the handler function
+    const handleMessage = (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log("Logged from event listener:", data);
+
+        if (data.type === "cli_status") { // Ensure this matches your backend ("host_status" vs "cli_status")
+          setCliStatus(data.status as HostStatus);
+        }
+      } catch (err) {
+          console.log(err)
+      }
+    };
+    agent.addEventListener("message", handleMessage);
+
+    return () => {
+      agent.removeEventListener("message", handleMessage);
+    };
+  }, [agent]);
+
   const [agentInput, setAgentInput] = useState("");
   const handleAgentInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -117,6 +142,7 @@ export default function Chat() {
   // Scroll to bottom when messages change
   useEffect(() => {
     agentMessages.length > 0 && scrollToBottom();
+    console.log(`Logged from agent messages useEffect ${agentMessages}`)
   }, [agentMessages, scrollToBottom]);
 
   const pendingToolCallConfirmation = agentMessages.some((m: UIMessage) =>
@@ -190,6 +216,7 @@ export default function Chat() {
             <Trash size={20} />
           </Button>
         </div>
+        <ClientStatus status={cliStatus} />
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24 max-h-[calc(100vh-10rem)]">

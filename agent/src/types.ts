@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const AgentEventSchema = z.discriminatedUnion("type", [
   z.object({ 
-    type: z.literal("host_status"), 
+    type: z.literal("cli_status"), 
     status: z.enum(["online", "offline"]) 
   }),
   z.object({ 

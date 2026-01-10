@@ -32,7 +32,7 @@ class SynapseClient:
             data = response.json()
             self.session_id = data.get("sessionId")
             self.websocket_url = data.get("url")
-            self.websocket_url = f"{self.websocket_url}?role=host"
+            self.websocket_url = f"{self.websocket_url}?role=cli"
             if not self.session_id or not self.websocket_url:
                 log.error("Failed to get session ID or WebSocket URL from the server.")
                 return False
@@ -49,21 +49,31 @@ class SynapseClient:
             return
 
         console.print(f"[bold green]🔌 Connecting to Synapse Brain at:[/bold green] {self.websocket_url}")
-        
-        async for websocket in websockets.connect(self.websocket_url):
-            try:
-                # 1. Send Handshake
-                await self.send_handshake(websocket)
-                
-                # 2. Listen for messages
-                await self.listen(websocket)
-            except websockets.ConnectionClosed:
-                log.warning("Connection lost. Retrying...")
-                await asyncio.sleep(1) # Simple backoff
-            except Exception as e:
-                log.error(f"Unexpected error: {e}")
-                break
 
+        try:
+            async for websocket in websockets.connect(self.websocket_url):
+                try:
+                    # 1. Send Handshake
+                    await self.send_handshake(websocket)
+                    
+                    # 2. Listen for messages
+                    await self.listen(websocket)
+                except websockets.ConnectionClosed:
+                    log.warning("Connection lost. Reconnecting...")
+                    continue
+                except asyncio.CancelledError:
+                    # Keyboard interrupt happened
+                    console.print("[bold red]🛑 Shutting down gracefully...[/bold red]")
+                    raise  # Re-raise to propagate upward
+                except Exception as e:
+                    log.error(f"Unexpected error: {e}")
+                    await asyncio.sleep(1)
+                    continue
+        except asyncio.CancelledError:
+        # Clean exit on keyboard interrupt
+            pass
+        
+        
     async def send_handshake(self, websocket):
         """Identifies this client as the HOST."""
         handshake = {

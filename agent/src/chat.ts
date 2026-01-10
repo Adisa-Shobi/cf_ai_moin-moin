@@ -32,7 +32,7 @@ export class Chat extends AIChatAgent<Env, AgentState> {
     const url = new URL(ctx.request.url);
     const role = url.searchParams.get("role") || "guest";
 
-    if (role === "host") {
+    if (role === "cli") {
       console.log("🔌 HOST Connected (Python CLI)");
 
       this.setState({
@@ -40,40 +40,7 @@ export class Chat extends AIChatAgent<Env, AgentState> {
         hostConnectionId: connection.id
       });
 
-      this.agentBroadcast({ type: "host_status", status: "online" });
-
-      connection.addEventListener("message", async (event) => {
-        try {
-          const rawData = JSON.parse(event.data as string);
-    
-    
-          const result = HostMessageSchema.safeParse(rawData);
-
-          if (!result.success) {
-            console.error("Invalid Host Message:", result.error.format());
-            return; 
-          }
-
-          const msg = result.data;
-          
-          if (msg.type === "tool_result" && this.pendingToolCalls.has(msg.call_id)) {
-            const resolve = this.pendingToolCalls.get(msg.call_id);
-            if (resolve) resolve(msg.output);
-            this.pendingToolCalls.delete(msg.call_id);
-          }
-        } catch (err) {
-          console.error("Error processing host message:", err);
-        }
-      });
-
-      connection.addEventListener("close", () => {
-        console.log("🔌 HOST Disconnected");
-        this.setState({
-          ...this.state,
-          hostConnectionId: null
-        })
-        this.agentBroadcast({ type: "host_status", status: "offline" });
-      });
+      this.agentBroadcast({ type: "cli_status", status: "online" });
 
       return; 
     } 
@@ -85,23 +52,40 @@ export class Chat extends AIChatAgent<Env, AgentState> {
         ...this.state,
         guestConnectionIds: newGuestConnectionIds
       });
-      
-      // Remove guest when they leave
-      connection.addEventListener("close", () => {
-        const filteredGuestConnectionsIds = this.state.guestConnectionIds.filter(c => c !== connection.id);
-        this.setState({
-          ...this.state,
-          guestConnectionIds: filteredGuestConnectionsIds
-        })
-      });
 
-      // Send immediate status
       if (connection) {
         connection.send(JSON.stringify({ type: "host_status", status: "online" }));
+      }
+
+      if (this.state.hostConnectionId) {
+        const cliConnection = this.getConnection(this.state.hostConnectionId)
+
+        if (cliConnection) this.agentBroadcast({ type: "cli_status", status: "online" });
       }
       
       return super.onConnect(connection, ctx);
     }
+  }
+
+  onClose(connection: Connection, code: number, reason: string, wasClean: boolean): void | Promise<void> {
+    // Remove the host CLI id after disconnection
+    if (this.state.hostConnectionId === connection.id) {
+      console.log("🔌 HOST Disconnected");
+        this.setState({
+          ...this.state,
+          hostConnectionId: null
+        })
+        this.agentBroadcast({ type: "cli_status", status: "offline" });
+    // Remove guest connection id after guest disconnects
+    } else if (this.state.guestConnectionIds.includes(connection.id)) {
+      const filteredGuestConnectionsIds = this.state.guestConnectionIds.filter(c => c !== connection.id);
+        this.setState({
+          ...this.state,
+          guestConnectionIds: filteredGuestConnectionsIds
+        })
+    }
+
+    return super.onClose(connection, code, reason, wasClean)
   }
 
   agentBroadcast(msg: AgentEvent) {

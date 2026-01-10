@@ -26,6 +26,8 @@ def start():
         asyncio.run(client.start())
     except KeyboardInterrupt:
         click.echo("\n🛑 Disconnected.")
+    except asyncio.CancelledError:
+        click.echo("\n🛑 Disconnected.")
 
 # Register the command
 cli.add_command(start)

@@ -1,7 +1,10 @@
 from typing import Callable, Any
 from pydantic import BaseModel, ValidationError
+import click
+import json
 
 from . import tools
+from .constants import UNSAFE_TOOLS
 
 class ReadFileArgs(BaseModel):
     path: str
@@ -38,6 +41,9 @@ TOOL_REGISTRY = {
 }
 
 class ToolDispatcher:
+    def __init__(self):
+        self.auto_approve_session = False
+
     def dispatch(self, tool_name: str, arguments: dict) -> str:
         """
         Dispatches a tool call to the appropriate function with validated arguments.
@@ -51,6 +57,25 @@ class ToolDispatcher:
         """
         if tool_name not in TOOL_REGISTRY:
             return f"Error: Tool '{tool_name}' not found."
+
+        # Security Gatekeeper
+        if tool_name in UNSAFE_TOOLS:
+            if not self.auto_approve_session:
+                click.echo()
+                click.secho(f"[⚠️ Security Alert] The Agent wants to run: {tool_name}", fg="yellow", bold=True)
+                click.echo(f"Arguments: {arguments}")
+                click.echo("Select action:")
+                click.echo("[y] Yes (Run once)")
+                click.echo("[a] Always (Allow all unsafe tools for this session)")
+                click.echo("[n] No (Deny)")
+                
+                choice = click.prompt("Choice", type=click.Choice(['y', 'a', 'n']), show_choices=False)
+                
+                if choice == 'n':
+                    return json.dumps({"status": "error", "output": "Permission denied by user."})
+                elif choice == 'a':
+                    self.auto_approve_session = True
+                # If 'y', proceed to execution
 
         tool_info = TOOL_REGISTRY[tool_name]
         func = tool_info["function"]

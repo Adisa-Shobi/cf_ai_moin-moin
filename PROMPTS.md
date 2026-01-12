@@ -200,3 +200,65 @@ app/page.tsx: The updated split-screen layout implementation.
 
 hooks/useContextEvents.ts (Optional): A helper hook to manage the event listening and state logic.
 ```
+```
+📋 Prompt: CLI Implementation - Security Gatekeeper (With Session Approval)
+Role: Senior Python Systems Engineer (CLI Specialist)
+
+Context: We are upgrading the Synapse Python CLI (built with Click) to include a security layer. Currently, the "Hands" (CLI) execute every command the Agent sends. We need a "Human-in-the-Loop" mechanism to prevent the Agent from modifying the file system without consent.
+
+Objective: Modify the tool execution logic to intercept "Unsafe" tools. Prompt the user for approval, but include a "Allow All" option to suppress further prompts for the duration of the current session.
+
+1. Functional Requirements
+A. Define Unsafe Tools
+Create a SET of unsafe tool names (e.g., write_file, run_command, git_commit).
+
+Safe Tools: read_file, git_status, git_diff (run automatically).
+
+B. The Gatekeeper Logic (Stateful)
+Introduce a session-level flag (e.g., self.auto_approve_session = False).
+
+Execution Flow:
+
+Check: Is the tool in UNSAFE_TOOLS?
+
+Check: Is self.auto_approve_session True?
+
+If Yes: Skip prompt and execute immediately.
+
+Prompt: If not auto-approved, pause and ask the user.
+
+Message:
+
+Plaintext
+
+[⚠️ Security Alert] The Agent wants to run: <tool_name>
+Arguments: <args>
+Select action:
+[y] Yes (Run once)
+[a] Always (Allow all unsafe tools for this session)
+[n] No (Deny)
+C. Handling the Input
+Use click.prompt with type=click.Choice(['y', 'a', 'n']) to handle the three-way selection.
+
+Logic:
+
+'y': Execute tool once.
+
+'a': Set self.auto_approve_session = True -> Execute tool -> Skip future prompts.
+
+'n': Do NOT execute. Return JSON error: {"status": "error", "output": "Permission denied by user."}.
+
+2. Constraints
+Framework: Use Click for all I/O (click.echo, click.prompt, click.style). Do not use raw input().
+
+No Dependency Changes: DO NOT modify pyproject.toml. Use existing libraries only.
+
+Scope: The "Always" setting is in-memory only. It should reset if the CLI is restarted.
+
+3. Deliverables
+State Management: Where/how you store the auto_approve flag within the client class.
+
+Modified Execution Loop: The refactored dispatch function containing the prompt logic.
+
+User Experience: Use click.style to make the alert visually distinct (e.g., Yellow/Red text).
+```

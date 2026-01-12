@@ -53,10 +53,10 @@ class SynapseClient:
         try:
             async for websocket in websockets.connect(self.websocket_url):
                 try:
-                    # 1. Send Handshake
+                    # Send Handshake
                     await self.send_handshake(websocket)
                     
-                    # 2. Listen for messages
+                    # Listen for messages
                     await self.listen(websocket)
                 except websockets.ConnectionClosed:
                     log.warning("Connection lost. Reconnecting...")
@@ -97,7 +97,6 @@ class SynapseClient:
         msg_type = data.get("type")
 
         if msg_type == "tool_call":
-            print(data)
             tool_name = data.get("name")
             tool_args = data.get("arguments")
             tool_call_id = data.get("call_id")
@@ -116,6 +115,7 @@ class SynapseClient:
             result = {
                 "type": "tool_result",
                 "call_id": tool_call_id,
+                "tool_name": tool_name, 
                 "status": status,
                 "output": output,
             }

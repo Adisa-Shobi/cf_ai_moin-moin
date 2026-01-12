@@ -133,3 +133,70 @@ error = dispatcher.dispatch("read_file", {"path": 123})
 **Deliverables:**
 Please write the complete code for `cli/synapse/tools.py` and `cli/synapse/dispatcher.py`. Use Python 3.12+ type hinting.
 ```
+```
+📋 Prompt: Frontend Implementation - Live Context Panel
+Role: Senior Frontend Engineer (React, Tailwind, TypeScript)
+
+Objective: Refactor the current chat interface into a Split-View Workspace. Create a dedicated side panel that listens for real-time backend events to display the files currently being discussed or edited by the Agent.
+
+1. The Backend Contract
+The server uses Zod for validation. You must strictly match this schema for the data coming from the WebSocket.
+
+src/types.ts:
+
+TypeScript
+
+import { z } from "zod";
+
+// 1. The Data Structure (File/Context Item)
+export const ChatAgentContextSchema = z.object({
+  id: z.string(),          // Unique ID (filepath)
+  type: z.enum(["file", "terminal", "doc"]),
+  title: z.string(),       // Filename (e.g., "src/agent.ts")
+  content: z.string(),     // The raw code content
+  updatedAt: z.number(),
+});
+export type ChatAgentContext = z.infer<typeof ChatAgentContextSchema>;
+
+// 2. The Event to Listen For
+export const AgentEventSchema = z.object({ 
+  type: z.literal("context_update"), 
+  context: z.array(ChatAgentContextSchema) 
+});
+2. Functional Requirements
+A. Layout Refactor (app/page.tsx)
+Refactor the main page layout from a centered container to a Responsive Split-View:
+
+Left Panel (Chat): The existing chat interface (messages & input).
+
+Right Panel (Context): A new dedicated area for file content.
+
+Behavior: The Right Panel should be collapsible (hidden on mobile or when empty) but should automatically expand when a file is loaded.
+
+B. Context Panel Component (components/ContextPanel.tsx)
+State: Maintain a list of active context items (received via WebSocket).
+
+UI: Implement a Tabbed Interface.
+
+If the agent reads multiple files (e.g., agent.ts and types.ts), create a tab for each.
+
+Allow the user to switch between tabs.
+
+Rendering: Use react-syntax-highlighter to render the content with proper code coloring.
+
+C. Event Integration
+Utilize the existing WebSocket connection.
+
+Listen specifically for the { type: "context_update" } message.
+
+Update the local state with the payload (context: ChatAgentContext[]).
+
+Note: The backend sends the full list on every update, so simply replace the existing state.
+
+3. Deliverables
+components/ContextPanel.tsx: The complete component with tabs and syntax highlighting.
+
+app/page.tsx: The updated split-screen layout implementation.
+
+hooks/useContextEvents.ts (Optional): A helper hook to manage the event listening and state logic.
+```

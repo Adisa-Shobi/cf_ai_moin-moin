@@ -16,18 +16,21 @@ log = logging.getLogger("rich")
 console = Console()
 
 class SynapseClient:
-    def __init__(self, base_url: str):
+    def __init__(self, base_url: str, id: str | None):
         self.base_url = base_url
-        self.session_id = None
+        self.session_id = id
         self.websocket_url: str | None = None
         self.dispatcher = ToolDispatcher()
 
     def get_session(self):
         """Get a new session ID and WebSocket URL from the server."""
         try:
+            data = {}
+            if (self.session_id):
+                data["session_id"] = self.session_id
             api_url = f"{self.base_url}/api/new-session"
-            console.print(f"[bold green]🚀 Requesting new session from:[/bold green] {api_url}")
-            response = requests.post(api_url)
+            console.print(f"[bold green]Requesting {"existing" if self.session_id else "new"} session[/bold green] ")
+            response = requests.post(api_url, data)
             response.raise_for_status()
             data = response.json()
             self.session_id = data.get("sessionId")
@@ -36,7 +39,7 @@ class SynapseClient:
             if not self.session_id or not self.websocket_url:
                 log.error("Failed to get session ID or WebSocket URL from the server.")
                 return False
-            console.print(f"[bold green]🎉 Connected to Session:[/bold green] {self.session_id}")
+            
             return True
         except requests.exceptions.RequestException as e:
             log.error(f"Failed to connect to the session server: {e}")
@@ -48,7 +51,9 @@ class SynapseClient:
         if not self.websocket_url:
             return
 
-        console.print(f"[bold green]🔌 Connecting to Synapse Brain at:[/bold green] {self.websocket_url}")
+        console.print(f"[bold green]Connecting to Synapse Brain...[/bold green]")
+        chat_url = f"{self.base_url}?session_id={self.session_id}"
+        console.print(f"[bold green]Connected at:[/bold green] {chat_url}")
 
         try:
             async for websocket in websockets.connect(self.websocket_url):

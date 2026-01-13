@@ -262,3 +262,61 @@ Modified Execution Loop: The refactored dispatch function containing the prompt 
 
 User Experience: Use click.style to make the alert visually distinct (e.g., Yellow/Red text).
 ```
+```
+📋 Prompt: Frontend Implementation - Collaboration Share Button
+Role: Senior Frontend Engineer (React, Tailwind, TypeScript)
+
+Context: Synapse is a distributed agent system where multiple users ("Guests") can view the same session as the "Host" (the user running the CLI). We need to make it easy for the Host to invite others to their current session.
+
+Objective: Implement a "Share Session" button in the top navigation bar. When clicked, it should generate a shareable URL containing the current session_id and copy it to the user's clipboard, providing visual feedback via a toast notification.
+
+1. Functional Requirements
+A. URL Construction
+On component mount, identify the current session_id.
+
+Priority 1: Get it from the current URL query parameters (?session_id=xyz).
+
+Priority 2: If missing in the URL but present in the application state, use that.
+
+Construct the full invite URL: window.location.origin + "?session_id=" + currentSessionId.
+
+B. The Share Component
+Location: In the Chat.tsx header row (next to the Theme Toggle or Debug button).
+
+Icon: Use the ShareNetwork or Link icon from @phosphor-icons/react.
+
+Interaction:
+
+Click: triggers the copy-to-clipboard action.
+
+Feedback: Render a "Toast" notification (e.g., using sonner, react-hot-toast, or a custom temporary state) saying "Invite link copied!".
+
+C. Guest Experience (Verification)
+Ensure that when a user loads the page with ?session_id=..., the existing initialization logic correctly captures that ID and connects to the correct WebSocket room (this should already be handled by useChat, but verify the flow).
+
+2. Implementation Details
+Modify File: src/agent.tsx (or extract a new ShareButton.tsx component).
+
+UX Flow:
+
+User clicks the "Share" icon.
+
+The browser clipboard receives: https://synapse.dev/?session_id=123e4567...
+
+A small floating alert appears at the bottom/top center: "Link copied to clipboard".
+
+The alert disappears automatically after 2-3 seconds.
+
+Styling:
+
+Use the existing Button component with variant="ghost" and shape="square" to match the neighboring buttons (Theme/Trash).
+
+Ensure it works in both Dark and Light modes.
+
+3. Deliverables
+components/ShareButton.tsx: A reusable component that handles the logic.
+
+Updated Chat.tsx: Integrate the button into the header.
+
+Toast Integration: If no toast library exists in the project, implement a simple generic Toast component or state to handle the notification.
+```

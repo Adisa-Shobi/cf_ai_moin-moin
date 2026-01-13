@@ -7,9 +7,9 @@ import {
   Moon,
   PaperPlaneTilt,
   Robot,
-  Stop, 
+  Stop,
   Sun,
-  Trash
+  Trash,
 } from "@phosphor-icons/react";
 import { useAgentChat } from "agents/ai-react";
 import { useAgent } from "agents/react";
@@ -21,11 +21,15 @@ import { Button } from "@/components/button/Button";
 import { ContextPanel } from "@/components/ContextPanel";
 import { Card } from "@/components/card/Card";
 import { MemoizedMarkdown } from "@/components/memoized-markdown";
+import { ShareButton } from "@/components/ShareButton";
 import { Textarea } from "@/components/textarea/Textarea";
 import { Toggle } from "@/components/toggle/Toggle";
 import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
 import { useContextEvents } from "@/hooks/useContextEvents";
-import { ClientStatus, type HostStatus } from "./components/status-bar/ClientStatus";
+import {
+  ClientStatus,
+  type HostStatus,
+} from "./components/status-bar/ClientStatus";
 import type { tools } from "./tools";
 
 // List of tools that require human confirmation
@@ -48,6 +52,10 @@ export default function Chat() {
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, []);
+
+  // Retrieve session id
+  const params = new URLSearchParams(window.location.search);
+  const sessionId = params.get("session_id") ?? undefined;
 
   useEffect(() => {
     // Apply theme class on mount and when theme changes
@@ -74,7 +82,8 @@ export default function Chat() {
   };
 
   const agent = useAgent({
-    agent: "chat"
+    agent: "chat",
+    name: sessionId,
   });
 
   const [cliStatus, setCliStatus] = useState<HostStatus>("offline");
@@ -86,11 +95,12 @@ export default function Chat() {
         const data = JSON.parse(event.data);
         console.log("Logged from event listener:", data);
 
-        if (data.type === "cli_status") { // Ensure this matches your backend ("host_status" vs "cli_status")
+        if (data.type === "cli_status") {
+          // Ensure this matches your backend ("host_status" vs "cli_status")
           setCliStatus(data.status as HostStatus);
         }
       } catch (err) {
-          console.log(err)
+        console.log(err);
       }
     };
     agent.addEventListener("message", handleMessage);
@@ -102,14 +112,14 @@ export default function Chat() {
 
   const [agentInput, setAgentInput] = useState("");
   const handleAgentInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
     setAgentInput(e.target.value);
   };
 
   const handleAgentSubmit = async (
     e: React.FormEvent,
-    extraData: Record<string, unknown> = {}
+    extraData: Record<string, unknown> = {},
   ) => {
     e.preventDefault();
     if (!agentInput.trim()) return;
@@ -121,11 +131,11 @@ export default function Chat() {
     await sendMessage(
       {
         role: "user",
-        parts: [{ type: "text", text: message }]
+        parts: [{ type: "text", text: message }],
       },
       {
-        body: extraData
-      }
+        body: extraData,
+      },
     );
   };
 
@@ -135,15 +145,15 @@ export default function Chat() {
     clearHistory,
     status,
     sendMessage,
-    stop
+    stop,
   } = useAgentChat<unknown, UIMessage<{ createdAt: string }>>({
-    agent
+    agent,
   });
 
   // Scroll to bottom when messages change
   useEffect(() => {
     agentMessages.length > 0 && scrollToBottom();
-    console.log(`Logged from agent messages useEffect ${agentMessages}`)
+    console.log(`Logged from agent messages useEffect ${agentMessages}`);
   }, [agentMessages, scrollToBottom]);
 
   const pendingToolCallConfirmation = agentMessages.some((m: UIMessage) =>
@@ -153,9 +163,9 @@ export default function Chat() {
         part.state === "input-available" &&
         // Manual check inside the component
         toolsRequiringConfirmation.includes(
-          part.type.replace("tool-", "") as keyof typeof tools
-        )
-    )
+          part.type.replace("tool-", "") as keyof typeof tools,
+        ),
+    ),
   );
 
   const formatTime = (date: Date) => {
@@ -164,10 +174,12 @@ export default function Chat() {
 
   return (
     <div className="h-screen w-full flex bg-neutral-50 dark:bg-neutral-950 overflow-hidden">
-      <div className={`
+      <div
+        className={`
           flex flex-col h-full transition-all duration-300 relative bg-white dark:bg-neutral-950
           ${contextFiles.length > 0 ? "w-full lg:w-1/2 xl:w-[45%] border-r border-neutral-300 dark:border-neutral-800" : "w-full max-w-3xl mx-auto border-x border-neutral-300 dark:border-neutral-800"}
-      `}>
+      `}
+      >
         <div className="px-4 py-3 border-b border-neutral-300 dark:border-neutral-800 flex items-center gap-3 sticky top-0 z-10 bg-white dark:bg-neutral-950">
           <div className="flex items-center justify-center h-8 w-8">
             <svg
@@ -199,6 +211,8 @@ export default function Chat() {
               onClick={() => setShowDebug((prev) => !prev)}
             />
           </div>
+
+          <ShareButton sessionId={sessionId} />
 
           <Button
             variant="ghost"
@@ -296,7 +310,7 @@ export default function Chat() {
                                   } relative`}
                                 >
                                   {part.text.startsWith(
-                                    "scheduled message"
+                                    "scheduled message",
                                   ) && (
                                     <span className="absolute -top-3 -left-2 text-base">
                                       🕒
@@ -306,7 +320,7 @@ export default function Chat() {
                                     id={`${m.id}-${i}`}
                                     content={part.text.replace(
                                       /^scheduled message: /,
-                                      ""
+                                      "",
                                     )}
                                   />
                                 </Card>
@@ -318,7 +332,7 @@ export default function Chat() {
                                   {formatTime(
                                     m.metadata?.createdAt
                                       ? new Date(m.metadata.createdAt)
-                                      : new Date()
+                                      : new Date(),
                                   )}
                                 </p>
                               </div>
@@ -330,7 +344,7 @@ export default function Chat() {
                             const toolName = part.type.replace("tool-", "");
                             const needsConfirmation =
                               toolsRequiringConfirmation.includes(
-                                toolName as keyof typeof tools
+                                toolName as keyof typeof tools,
                               );
 
                             return (
@@ -344,14 +358,14 @@ export default function Chat() {
                                   addToolResult({
                                     tool: part.type.replace("tool-", ""),
                                     toolCallId,
-                                    output: result
+                                    output: result,
                                   });
                                 }}
                                 addToolResult={(toolCallId, result) => {
                                   addToolResult({
                                     tool: part.type.replace("tool-", ""),
                                     toolCallId,
-                                    output: result
+                                    output: result,
                                   });
                                 }}
                               />
@@ -375,8 +389,8 @@ export default function Chat() {
             e.preventDefault();
             handleAgentSubmit(e, {
               annotations: {
-                hello: "world"
-              }
+                hello: "world",
+              },
             });
             setTextareaHeight("auto"); // Reset height after submission
           }}
@@ -439,11 +453,11 @@ export default function Chat() {
           </div>
         </form>
       </div>
-      
+
       {/* Right Panel: Context */}
       {contextFiles.length > 0 && (
         <div className="hidden lg:flex flex-1 flex-col h-full overflow-hidden bg-white dark:bg-neutral-950">
-           <ContextPanel files={contextFiles} />
+          <ContextPanel files={contextFiles} />
         </div>
       )}
     </div>

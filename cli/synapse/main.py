@@ -9,7 +9,8 @@ def cli():
     pass
 
 @click.command()
-def start():
+@click.option("--id", default=None, help="Resume connection to existing Chat session")
+def start(id):
     """
     Connect to the Cloudflare Agent.
     """
@@ -19,7 +20,7 @@ def start():
         click.echo("Error: URL must start with http:// or https://")
         return
 
-    client = SynapseClient(base_url)
+    client = SynapseClient(base_url, id)
     
     # Run the asyncio loop
     try:

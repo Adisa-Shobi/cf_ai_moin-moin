@@ -17,6 +17,8 @@ import { executions } from "./tools";
 import { type AgentEvent, type AgentState, type ChatAgentContext, HostMessageSchema, type readFileArgs, TOOLS, type ToolArguments, type ToolName, type ToolNameArgs, toolArgSchemas } from "./types";
 import { cleanupMessages, processToolCalls } from "./utils";
 
+const MAX_CONTEXT_FILES = 5
+
 const workersAi = createWorkersAI({ binding: env.AI });
 
 const model = workersAi("@cf/meta/llama-3.1-8b-instruct-fp8");
@@ -126,12 +128,25 @@ export class Chat extends AIChatAgent<Env, AgentState> {
 
   updateContext(item: ChatAgentContext) {
     const current = this.state.agentContext ?? [];
-    const filtered = current.filter(c => c.id !== item.id);
+    const filtered = current.filter((c) => c.id !== item.id);
+    
+    if (filtered.length === MAX_CONTEXT_FILES) {
+      filtered.sort((a, b) => a.updatedAt - b.updatedAt)
+
+      filtered.shift()
+    }
     
     this.setState({
       ...this.state,
-      agentContext: [...filtered, item]
+      agentContext: [...filtered, item],
     });
+  }
+
+  clearContext() {
+    this.setState({
+      ...this.state,
+      agentContext: []
+    })
   }
 
   getTools() {
@@ -209,6 +224,10 @@ export class Chat extends AIChatAgent<Env, AgentState> {
         };
         
         this.pendingToolCalls.delete(msg.call_id);
+      }
+
+      if (msg.type === "clear_context") {
+          this.clearContext()
       }
     } catch (err) {
       console.error("Error processing host message:", err);

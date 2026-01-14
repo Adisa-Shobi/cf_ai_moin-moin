@@ -21,6 +21,7 @@ import { Button } from "@/components/button/Button";
 import { ContextPanel } from "@/components/ContextPanel";
 import { Card } from "@/components/card/Card";
 import { MemoizedMarkdown } from "@/components/memoized-markdown";
+import { ShareButton } from "@/components/ShareButton";
 import { Textarea } from "@/components/textarea/Textarea";
 import { Toggle } from "@/components/toggle/Toggle";
 import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
@@ -210,6 +211,8 @@ export default function Chat() {
               onClick={() => setShowDebug((prev) => !prev)}
             />
           </div>
+
+          <ShareButton sessionId={sessionId} />
 
           <Button
             variant="ghost"

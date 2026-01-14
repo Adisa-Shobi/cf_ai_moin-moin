@@ -76,11 +76,13 @@ export const HostMessageSchema = z.discriminatedUnion("type", [
 
 export type HostMessage = z.infer<typeof HostMessageSchema>;
 
-export interface AgentState {
-  hostConnectionId: string | null;
-  guestConnectionIds: string[];
-  agentContext: ChatAgentContext[]
-}
+export const AgentStateSchema = z.object({
+  hostConnectionId: z.string().optional(),
+  guestConnectionIds: z.array(z.string()),
+  agentContext: z.array(ChatAgentContextSchema)
+})
+
+export type AgentState = z.infer<typeof AgentStateSchema>;
 
 export const toolArgSchemas = {
   [TOOLS.GIT_STATUS]: z.object({}),

@@ -97,14 +97,13 @@ export class Chat extends AIChatAgent<Env, AgentState> {
         }),
       );
 
-      if (this.state.agentContext?.length) {
-        connection.send(
-          JSON.stringify({
-            type: "context_update",
-            context: this.state.agentContext,
-          }),
-        );
-      }
+      console.log(this.state.agentContext)
+      connection.send(
+        JSON.stringify({
+          type: "context_update",
+          context: this.state.agentContext ?? [],
+        }),
+      );
 
       return super.onConnect(connection, ctx);
     }
@@ -121,7 +120,7 @@ export class Chat extends AIChatAgent<Env, AgentState> {
       console.log("🔌 HOST Disconnected");
       this.setState({
         ...this.state,
-        hostConnectionId: null,
+        hostConnectionId: undefined,
       });
     }
 

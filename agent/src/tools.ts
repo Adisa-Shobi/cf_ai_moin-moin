@@ -1,33 +1,70 @@
-/**
- * Tool definitions for the AI chat agent
- * Tools can either require human confirmation or execute automatically
- */
+import { tool } from "ai";
+import { 
+  type ChatAgentContext, 
+  TOOLS, 
+  type ToolArguments, 
+  type ToolNameArgs, 
+  toolArgSchemas 
+} from "./types";
 
-import type { ToolSet, } from "ai";
+// Define the interface for the capabilities the tools need from the Agent
+export interface ToolCallbacks {
+  executeRemote: (name: ToolNameArgs, args: ToolArguments) => Promise<string>;
+  updateContext: (item: ChatAgentContext) => void;
+}
 
-/**
- * Weather information tool that requires human confirmation
- * When invoked, this will present a confirmation dialog to the user
- */
-// const getWeatherInformation = tool({
-//   description: "show the weather in a given city to the user",
-//   inputSchema: z.object({ city: z.string() })
-//   // Omitting execute function makes this tool require human confirmation
-// });
+export const createAgentTools = (callbacks: ToolCallbacks) => {
+  return {
+    [TOOLS.GIT_STATUS]: tool({
+      description: "Check the current status of the git repository. Returns changed files.",
+      inputSchema: toolArgSchemas[TOOLS.GIT_STATUS],
+      execute: async () => {
+        return await callbacks.executeRemote("git_status", {});
+      },
+    }),
 
-/**
- * Local time tool that executes automatically
- * Since it includes an execute function, it will run without user confirmation
- * This is suitable for low-risk operations that don't need oversight
- */
-// const getLocalTime = tool({
-//   description: "get the local time for a specified location",
-//   inputSchema: z.object({ location: z.string() }),
-//   execute: async ({ location }) => {
-//     console.log(`Getting local time for ${location}`);
-//     return "10am";
-//   }
-// });
+    [TOOLS.GIT_DIFF]: tool({
+      description: "Get the specific changes (diff) of the current repository.",
+      inputSchema: toolArgSchemas[TOOLS.GIT_DIFF],
+      execute: async () => {
+        return await callbacks.executeRemote("git_diff", {});
+      },
+    }),
+
+    [TOOLS.READ_FILE]: tool({
+      description: "Read the contents of a specific file.",
+      inputSchema: toolArgSchemas[TOOLS.READ_FILE],
+      execute: async (args) => {
+        return await callbacks.executeRemote("read_file", args);
+      },
+    }),
+
+    [TOOLS.WRITE_FILE]: tool({
+      description: "Write or overwrite content to a file.",
+      inputSchema: toolArgSchemas[TOOLS.WRITE_FILE],
+      execute: async (args) => {
+        return await callbacks.executeRemote("write_file", args);
+      },
+    }),
+
+    [TOOLS.RUN_COMMAND]: tool({
+      description: "Execute a generic shell command (e.g., ls, mkdir, pytest).",
+      inputSchema: toolArgSchemas[TOOLS.RUN_COMMAND],
+      execute: async (args) => {
+        return await callbacks.executeRemote("run_command", args);
+      },
+    }),
+
+    [TOOLS.ADD_CONTEXT]: tool({
+      description: "Add a file to the active memory context.",
+      inputSchema: toolArgSchemas[TOOLS.ADD_CONTEXT],
+      execute: async (args) => {
+        callbacks.updateContext(args);
+        return "Context updated successfully.";
+      },
+    }),
+  };
+};
 
 // const scheduleTask = tool({
 //   description: "A tool to schedule a task to be executed at a later time",
@@ -104,26 +141,7 @@ import type { ToolSet, } from "ai";
 //   }
 // });
 
-/**
- * Export all available tools
- * These will be provided to the AI model to describe available capabilities
- */
-export const tools = {
-  // getWeatherInformation,
-  // getLocalTime,
-  // scheduleTask,
-  // getScheduledTasks,
-  // cancelScheduledTask
-} satisfies ToolSet;
 
-/**
- * Implementation of confirmation-required tools
- * This object contains the actual logic for tools that need human approval
- * Each function here corresponds to a tool above that doesn't have an execute function
- */
+
 export const executions = {
-  // getWeatherInformation: async ({ city }: { city: string }) => {
-  //   console.log(`Getting weather information for ${city}`);
-  //   return `The weather in ${city} is sunny`;
-  // }
 };

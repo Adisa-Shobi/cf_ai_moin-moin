@@ -10,10 +10,9 @@ import {
   stepCountIs,
   streamText,
   type ToolSet,
-  tool,
 } from "ai";
 import { createWorkersAI } from "workers-ai-provider";
-import { executions } from "./tools";
+import { createAgentTools, executions, type ToolCallbacks } from "./tools";
 import {
   type AgentEvent,
   type AgentState,
@@ -24,7 +23,6 @@ import {
   type ToolArguments,
   type ToolName,
   type ToolNameArgs,
-  toolArgSchemas,
 } from "./types";
 import { cleanupMessages, processToolCalls } from "./utils";
 
@@ -178,56 +176,6 @@ export class Chat extends AIChatAgent<Env, AgentState> {
     })
   }
 
-  getTools() {
-    return {
-      [TOOLS.GIT_STATUS]: tool({
-        description:
-          "Check the current status of the git repository. Returns changed files.",
-        inputSchema: toolArgSchemas[TOOLS.GIT_STATUS], // No args needed
-        execute: async (_args) => {
-          return await this.executeRemoteTool("git_status", {});
-        },
-      }),
-      [TOOLS.GIT_DIFF]: tool({
-        description:
-          "Get the specific changes (diff) of the current repository.",
-        inputSchema: toolArgSchemas[TOOLS.GIT_DIFF],
-        execute: async (_args) => {
-          return await this.executeRemoteTool("git_diff", {});
-        },
-      }),
-      [TOOLS.READ_FILE]: tool({
-        description: "Read the contents of a specific file.",
-        inputSchema: toolArgSchemas[TOOLS.READ_FILE],
-        execute: async (args) => {
-          return await this.executeRemoteTool("read_file", args);
-        },
-      }),
-      [TOOLS.WRITE_FILE]: tool({
-        description: "Write or overwrite content to a file.",
-        inputSchema: toolArgSchemas[TOOLS.WRITE_FILE],
-        execute: async (args) => {
-          return await this.executeRemoteTool("write_file", args);
-        },
-      }),
-      [TOOLS.RUN_COMMAND]: tool({
-        description:
-          "Execute a generic shell command (e.g., ls, mkdir, pytest).",
-        inputSchema: toolArgSchemas[TOOLS.RUN_COMMAND],
-        execute: async (args) => {
-          return await this.executeRemoteTool("run_command", args);
-        },
-      }),
-      [TOOLS.ADD_CONTEXT]: tool({
-        description: "",
-        inputSchema: toolArgSchemas[TOOLS.ADD_CONTEXT],
-        execute: async (args) => {
-          this.updateContext(args);
-        },
-      }),
-    };
-  }
-
   onMessage(connection: Connection, message: WSMessage): void | Promise<void> {
     try {
       const rawData = JSON.parse(message as string);
@@ -273,7 +221,17 @@ export class Chat extends AIChatAgent<Env, AgentState> {
     onFinish: StreamTextOnFinishCallback<ToolSet>,
     _options?: { abortSignal?: AbortSignal },
   ) {
-    const allTools = this.getTools();
+
+    const toolCallbacks: ToolCallbacks = {
+      executeRemote: async (name, args) => {
+      return await this.executeRemoteTool(name, args);
+    },
+      updateContext: async (item) => {
+        return this.updateContext(item)
+      } ,
+    };
+
+    const allTools = createAgentTools(toolCallbacks);
 
     const currentContext = this.state.agentContext ?? [];
 
@@ -323,6 +281,7 @@ export class Chat extends AIChatAgent<Env, AgentState> {
     name: ToolNameArgs,
     args: ToolArguments,
   ): Promise<string> {
+    console.log(`Currently remotely executing a command: ${this.state.hostConnectionId}`);
     const hostConnectionId = this.state.hostConnectionId;
     if (!hostConnectionId) return "Error: No Host CLI connected.";
 

@@ -28,6 +28,8 @@ import {
 } from "./types";
 import { cleanupMessages, processToolCalls } from "./utils";
 
+const MAX_CONTEXT_FILES = 5
+
 const workersAi = createWorkersAI({ binding: env.AI });
 
 const model = workersAi("@cf/meta/llama-3.1-8b-instruct-fp8");
@@ -95,14 +97,13 @@ export class Chat extends AIChatAgent<Env, AgentState> {
         }),
       );
 
-      if (this.state.agentContext?.length) {
-        connection.send(
-          JSON.stringify({
-            type: "context_update",
-            context: this.state.agentContext,
-          }),
-        );
-      }
+      console.log(this.state.agentContext)
+      connection.send(
+        JSON.stringify({
+          type: "context_update",
+          context: this.state.agentContext ?? [],
+        }),
+      );
 
       return super.onConnect(connection, ctx);
     }
@@ -119,7 +120,7 @@ export class Chat extends AIChatAgent<Env, AgentState> {
       console.log("🔌 HOST Disconnected");
       this.setState({
         ...this.state,
-        hostConnectionId: null,
+        hostConnectionId: undefined,
       });
     }
 
@@ -157,11 +158,24 @@ export class Chat extends AIChatAgent<Env, AgentState> {
   updateContext(item: ChatAgentContext) {
     const current = this.state.agentContext ?? [];
     const filtered = current.filter((c) => c.id !== item.id);
+    
+    if (filtered.length === MAX_CONTEXT_FILES) {
+      filtered.sort((a, b) => a.updatedAt - b.updatedAt)
 
+      filtered.shift()
+    }
+    
     this.setState({
       ...this.state,
       agentContext: [...filtered, item],
     });
+  }
+
+  clearContext() {
+    this.setState({
+      ...this.state,
+      agentContext: []
+    })
   }
 
   getTools() {
@@ -244,6 +258,10 @@ export class Chat extends AIChatAgent<Env, AgentState> {
         }
 
         this.pendingToolCalls.delete(msg.call_id);
+      }
+
+      if (msg.type === "clear_context") {
+          this.clearContext()
       }
     } catch (err) {
       console.error("Error processing host message:", err);

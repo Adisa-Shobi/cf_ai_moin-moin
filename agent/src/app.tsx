@@ -12,7 +12,6 @@ import {
   Trash,
 } from "@phosphor-icons/react";
 import { useAgentChat } from "agents/ai-react";
-import { useAgent } from "agents/react";
 import { isToolUIPart } from "ai";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Avatar } from "@/components/avatar/Avatar";
@@ -26,6 +25,7 @@ import { Textarea } from "@/components/textarea/Textarea";
 import { Toggle } from "@/components/toggle/Toggle";
 import { ToolInvocationCard } from "@/components/tool-invocation-card/ToolInvocationCard";
 import { useContextEvents } from "@/hooks/useContextEvents";
+import { useGlobalAgent } from "@/providers/AgentProvider";
 import {
   ClientStatus,
   type HostStatus,
@@ -81,10 +81,7 @@ export default function Chat() {
     setTheme(newTheme);
   };
 
-  const agent = useAgent({
-    agent: "chat",
-    name: sessionId,
-  });
+  const { agent } = useGlobalAgent();
 
   const [cliStatus, setCliStatus] = useState<HostStatus>("offline");
 
@@ -93,10 +90,8 @@ export default function Chat() {
     const handleMessage = (event: MessageEvent) => {
       try {
         const data = JSON.parse(event.data);
-        console.log("Logged from event listener:", data);
 
         if (data.type === "cli_status") {
-          // Ensure this matches your backend ("host_status" vs "cli_status")
           setCliStatus(data.status as HostStatus);
         }
       } catch (err) {
@@ -457,7 +452,7 @@ export default function Chat() {
       {/* Right Panel: Context */}
       {contextFiles.length > 0 && (
         <div className="hidden lg:flex flex-1 flex-col h-full overflow-hidden bg-white dark:bg-neutral-950">
-          <ContextPanel files={contextFiles} />
+          <ContextPanel files={contextFiles} onClearContext={() => agent.send(JSON.stringify({ type: "clear_context" }))} />
         </div>
       )}
     </div>

@@ -33,11 +33,10 @@ import {
 import type { tools } from "./tools";
 import { TOOLS } from "./types";
 
-// List of tools that require human confirmation
-// NOTE: this should match the tools that don't have execute functions in tools.ts
-// TODO: Configure tools with proper permissions
 const toolsRequiringConfirmation: (keyof typeof tools)[] = [
-  TOOLS.WEB_SEARCH
+  TOOLS.WEB_SEARCH,
+  TOOLS.WRITE_FILE,
+  TOOLS.RUN_COMMAND
 ];
 
 export default function Chat() {

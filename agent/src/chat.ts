@@ -1,7 +1,6 @@
 import { env } from "cloudflare:workers";
 import type { Connection, ConnectionContext, WSMessage } from "agents";
 import { AIChatAgent } from "agents/ai-chat-agent";
-// import { getSchedulePrompt } from "agents/schedule";
 import {
   convertToModelMessages,
   createUIMessageStream,
@@ -12,7 +11,7 @@ import {
   type ToolSet,
 } from "ai";
 import { createWorkersAI } from "workers-ai-provider";
-import { createAgentTools, executions, type ToolCallbacks } from "./tools";
+import { createAgentTools, executions } from "./tools";
 import {
   type AgentEvent,
   type AgentState,
@@ -22,7 +21,6 @@ import {
   TOOLS,
   type ToolArguments,
   type ToolName,
-  type ToolNameArgs,
 } from "./types";
 import { cleanupMessages, processToolCalls } from "./utils";
 
@@ -42,15 +40,8 @@ export class Chat extends AIChatAgent<Env, AgentState> {
   pendingToolCalls = new Map<string, PendingCall>();
 
   onStateUpdate(state: AgentState, _source: Connection | "server"): void {
-    const hostId = state.hostConnectionId;
-
-    // Check if the connection exists in RAM, not just in DB (State)
-    const hostConnection = hostId ? this.getConnection(hostId) : null;
-    const isLive = !!(
-      hostConnection && hostConnection.readyState === WebSocket.OPEN
-    );
-
-    // Broadcast the *effective* status
+    
+    const isLive = this.isConnectionLive(this.state.hostConnectionId)
     const status = isLive ? "online" : "offline";
     this.agentBroadcast({ type: "cli_status", status });
 
@@ -60,6 +51,17 @@ export class Chat extends AIChatAgent<Env, AgentState> {
         context: state.agentContext,
       });
     }
+  }
+
+  isConnectionLive(connectionId: string | undefined) {
+
+    const connection = connectionId ? this.getConnection(connectionId) : null;
+    
+    const isLive = !!(
+      connection && connection.readyState === WebSocket.OPEN
+    );
+    
+    return isLive
   }
 
   onConnect(
@@ -95,7 +97,6 @@ export class Chat extends AIChatAgent<Env, AgentState> {
         }),
       );
 
-      console.log(this.state.agentContext)
       connection.send(
         JSON.stringify({
           type: "context_update",
@@ -121,18 +122,12 @@ export class Chat extends AIChatAgent<Env, AgentState> {
         hostConnectionId: undefined,
       });
     }
-
-    // Guest Disconnect
-    else if (this.state.guestConnectionIds.includes(connection.id)) {
-      this.setState({
-        ...this.state,
-        guestConnectionIds: this.state.guestConnectionIds.filter(
-          (c) => c !== connection.id,
-        ),
-      });
-    } else if (
-      !this.state.hostConnectionId &&
-      this.state.guestConnectionIds.length === 0
+    
+    const activeGuestIds = this.getActiveGuestConnections()
+    
+    if (
+      !this.isConnectionLive(this.state.hostConnectionId) &&
+      activeGuestIds.length === 0
     ) {
       this.destroy();
     }
@@ -140,11 +135,23 @@ export class Chat extends AIChatAgent<Env, AgentState> {
     return super.onClose(connection, code, reason, wasClean);
   }
 
-  agentBroadcast(msg: AgentEvent) {
-    const activeIds = (this.state.guestConnectionIds ?? []).filter((id) => {
-      const ws = this.getConnection(id);
-      return ws && ws.readyState === WebSocket.OPEN;
+  getActiveGuestConnections() {
+    if (!this.state.guestConnectionIds) return []
+    const activeIds = (this.state.guestConnectionIds).filter((id) => {
+      return this.isConnectionLive(id)
     });
+
+    if (activeIds.length !== this.state.guestConnectionIds.length) {
+      this.setState({
+      ...this.state,
+      guestConnectionIds: activeIds
+    });
+    }
+    return activeIds
+  }
+
+  agentBroadcast(msg: AgentEvent) {
+    const activeIds = this.getActiveGuestConnections()
 
     activeIds.forEach((id) => {
       try {
@@ -222,16 +229,7 @@ export class Chat extends AIChatAgent<Env, AgentState> {
     _options?: { abortSignal?: AbortSignal },
   ) {
 
-    const toolCallbacks: ToolCallbacks = {
-      executeRemote: async (name, args) => {
-      return await this.executeRemoteTool(name, args);
-    },
-      updateContext: async (item) => {
-        return this.updateContext(item)
-      } ,
-    };
-
-    const allTools = createAgentTools(toolCallbacks);
+    const allTools = createAgentTools();
 
     const currentContext = this.state.agentContext ?? [];
 
@@ -277,52 +275,5 @@ export class Chat extends AIChatAgent<Env, AgentState> {
     return createUIMessageStreamResponse({ stream });
   }
 
-  async executeRemoteTool(
-    name: ToolNameArgs,
-    args: ToolArguments,
-  ): Promise<string> {
-    console.log(`Currently remotely executing a command: ${this.state.hostConnectionId}`);
-    const hostConnectionId = this.state.hostConnectionId;
-    if (!hostConnectionId) return "Error: No Host CLI connected.";
-
-    const connection = this.getConnection(hostConnectionId);
-
-    if (!connection || connection.readyState !== WebSocket.OPEN)
-      return "Error: No Host CLI connection found.";
-
-    const call_id = crypto.randomUUID();
-
-    this.agentBroadcast({
-      type: "tool_pending",
-      tool: name,
-      status: "waiting_for_approval",
-    });
-
-    connection.send(
-      JSON.stringify({
-        type: "tool_call",
-        call_id,
-        name,
-        arguments: args,
-      }),
-    );
-
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        if (this.pendingToolCalls.delete(call_id)) {
-          reject(new Error("Tool execution timed out"));
-        }
-      }, 600000);
-
-      this.pendingToolCalls.set(call_id, {
-        resolve: (output: string) => {
-          clearTimeout(timeout);
-          this.agentBroadcast({ type: "tool_complete", tool: name });
-          resolve(output);
-        },
-        tool: name,
-        args,
-      });
-    });
-  }
+  
 }

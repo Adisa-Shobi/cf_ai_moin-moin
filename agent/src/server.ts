@@ -49,4 +49,4 @@ app.use("*", async (c) => {
 });
 
 export { Chat };
-export default app;
+export default app

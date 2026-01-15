@@ -1,33 +1,116 @@
-/**
- * Tool definitions for the AI chat agent
- * Tools can either require human confirmation or execute automatically
- */
+import { env } from 'cloudflare:workers';
+import Firecrawl from '@mendable/firecrawl-js';
+import { getCurrentAgent } from "agents";
+import { type ToolSet, tool } from "ai";
+import type { Chat } from "./chat";
+import { 
+  TOOLS, 
+  type ToolArguments, 
+  type ToolNameArgs, 
+  toolArgSchemas, 
+  type webSearchArgs
+} from "./types";
+import { parseFirecrawlResults } from './utils';
 
-import type { ToolSet, } from "ai";
+export const createAgentTools = () => {
+  return {
+    [TOOLS.GIT_STATUS]: tool({
+      description: "Check the current status of the git repository. Returns changed files.",
+      inputSchema: toolArgSchemas[TOOLS.GIT_STATUS],
+      execute: async () => {
+        return await executeRemoteTool("git_status", {});
+      },
+    }),
 
-/**
- * Weather information tool that requires human confirmation
- * When invoked, this will present a confirmation dialog to the user
- */
-// const getWeatherInformation = tool({
-//   description: "show the weather in a given city to the user",
-//   inputSchema: z.object({ city: z.string() })
-//   // Omitting execute function makes this tool require human confirmation
-// });
+    [TOOLS.GIT_DIFF]: tool({
+      description: "Get the specific changes (diff) of the current repository.",
+      inputSchema: toolArgSchemas[TOOLS.GIT_DIFF],
+      execute: async () => {
+        return await executeRemoteTool("git_diff", {});
+      },
+    }),
 
-/**
- * Local time tool that executes automatically
- * Since it includes an execute function, it will run without user confirmation
- * This is suitable for low-risk operations that don't need oversight
- */
-// const getLocalTime = tool({
-//   description: "get the local time for a specified location",
-//   inputSchema: z.object({ location: z.string() }),
-//   execute: async ({ location }) => {
-//     console.log(`Getting local time for ${location}`);
-//     return "10am";
-//   }
-// });
+    [TOOLS.READ_FILE]: tool({
+      description: "Read the contents of a specific file.",
+      inputSchema: toolArgSchemas[TOOLS.READ_FILE],
+      execute: async (args) => {
+        return await executeRemoteTool("read_file", args);
+      },
+    }),
+
+    [TOOLS.WRITE_FILE]: tool({
+      description: "Write or overwrite content to a file.",
+      inputSchema: toolArgSchemas[TOOLS.WRITE_FILE],
+      execute: async (args) => {
+        return await executeRemoteTool("write_file", args);
+      },
+    }),
+
+    [TOOLS.RUN_COMMAND]: tool({
+      description: "Execute a generic shell command (e.g., ls, mkdir, pytest).",
+      inputSchema: toolArgSchemas[TOOLS.RUN_COMMAND],
+      execute: async (args) => {
+        return await executeRemoteTool("run_command", args);
+      },
+    }),
+    [TOOLS.WEB_SEARCH]: tool({
+      description: "Search the web using any query of you choice",
+      inputSchema: toolArgSchemas[TOOLS.WEB_SEARCH]
+    })
+  };
+};
+
+  async function executeRemoteTool(
+    name: ToolNameArgs,
+    args: ToolArguments,
+  ): Promise<string> {
+    const { agent } = getCurrentAgent<Chat>()
+
+    if (!agent) return ""
+    console.log(`Currently remotely executing a command: ${agent.state.hostConnectionId}`);
+    const hostConnectionId = agent.state.hostConnectionId;
+    if (!hostConnectionId) return "Error: No Host CLI connected.";
+
+    const connection = agent.getConnection(hostConnectionId);
+
+    if (!connection || connection.readyState !== WebSocket.OPEN)
+      return "Error: No Host CLI connection found.";
+
+    const call_id = crypto.randomUUID();
+
+    agent.agentBroadcast({
+      type: "tool_pending",
+      tool: name,
+      status: "waiting_for_approval",
+    });
+
+    connection.send(
+      JSON.stringify({
+        type: "tool_call",
+        call_id,
+        name,
+        arguments: args,
+      }),
+    );
+
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        if (agent.pendingToolCalls.delete(call_id)) {
+          reject(new Error("Tool execution timed out"));
+        }
+      }, 600000);
+
+      agent.pendingToolCalls.set(call_id, {
+        resolve: (output: string) => {
+          clearTimeout(timeout);
+          agent.agentBroadcast({ type: "tool_complete", tool: name });
+          resolve(output);
+        },
+        tool: name,
+        args,
+      });
+    });
+  }
 
 // const scheduleTask = tool({
 //   description: "A tool to schedule a task to be executed at a later time",
@@ -104,26 +187,27 @@ import type { ToolSet, } from "ai";
 //   }
 // });
 
-/**
- * Export all available tools
- * These will be provided to the AI model to describe available capabilities
- */
 export const tools = {
-  // getWeatherInformation,
-  // getLocalTime,
-  // scheduleTask,
-  // getScheduledTasks,
-  // cancelScheduledTask
-} satisfies ToolSet;
+  ...createAgentTools()
+} satisfies ToolSet
 
-/**
- * Implementation of confirmation-required tools
- * This object contains the actual logic for tools that need human approval
- * Each function here corresponds to a tool above that doesn't have an execute function
- */
 export const executions = {
-  // getWeatherInformation: async ({ city }: { city: string }) => {
-  //   console.log(`Getting weather information for ${city}`);
-  //   return `The weather in ${city} is sunny`;
-  // }
+  [TOOLS.WEB_SEARCH]: async (args: webSearchArgs) => {
+    const firecrawl = new Firecrawl({ apiKey: env.FIRECRAWL_API_KEY });
+    
+    try {
+      const res = await firecrawl.search(args.query, {
+        limit: 2,
+        scrapeOptions: { formats: ['markdown'] }
+      });
+
+      const parsed = parseFirecrawlResults(res);
+      
+      if (!parsed) return "No relevant content found.";
+      
+      return parsed
+    } catch (_e) {
+      return `Search failed`;
+    }
+  }
 };

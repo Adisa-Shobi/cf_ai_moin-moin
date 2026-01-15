@@ -31,11 +31,14 @@ import {
   type HostStatus,
 } from "./components/status-bar/ClientStatus";
 import type { tools } from "./tools";
+import { TOOLS } from "./types";
 
 // List of tools that require human confirmation
 // NOTE: this should match the tools that don't have execute functions in tools.ts
 // TODO: Configure tools with proper permissions
-const toolsRequiringConfirmation: (keyof typeof tools)[] = [];
+const toolsRequiringConfirmation: (keyof typeof tools)[] = [
+  TOOLS.WEB_SEARCH
+];
 
 export default function Chat() {
   const [theme, setTheme] = useState<"dark" | "light">(() => {

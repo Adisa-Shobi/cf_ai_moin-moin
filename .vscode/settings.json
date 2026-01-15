@@ -2,5 +2,8 @@
     "typescript.tsdk": "node_modules/typescript/lib",
     "npm.packageManager": "pnpm",
     "python-envs.defaultEnvManager": "ms-python.python:pyenv",
-    "python-envs.pythonProjects": []
+    "python-envs.pythonProjects": [],
+    "cSpell.words": [
+        "Firecrawl"
+    ]
 }

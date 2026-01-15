@@ -43,7 +43,6 @@ export const TOOLS = {
   READ_FILE: "read_file",
   WRITE_FILE: "write_file",
   RUN_COMMAND: "run_command",
-  ADD_CONTEXT: "add_context",
   WEB_SEARCH: "web_search"
 } as const;
 
@@ -55,7 +54,6 @@ export const ToolNameSchema = z.enum([
   TOOLS.READ_FILE,
   TOOLS.WRITE_FILE,
   TOOLS.RUN_COMMAND,
-  TOOLS.ADD_CONTEXT,
   TOOLS.WEB_SEARCH
 ]);
 
@@ -99,9 +97,8 @@ export const toolArgSchemas = {
   [TOOLS.RUN_COMMAND]: z.object({
           command: z.string().describe("The shell command to run"),
         }),
-  [TOOLS.ADD_CONTEXT]: ChatAgentContextSchema,
   [TOOLS.WEB_SEARCH]: z.object({
-    url: z.string().url().describe("The url of a web resource you want to search")
+    query: z.string().describe("The query to search")
   })
 };
 
@@ -109,9 +106,11 @@ export type ToolNameArgs = keyof typeof toolArgSchemas;
 
 export type readFileArgs = z.infer<typeof toolArgSchemas[typeof TOOLS.READ_FILE]>
 
+export type webSearchArgs = z.infer<typeof toolArgSchemas[typeof TOOLS.WEB_SEARCH]>
+
 export type ToolArguments = 
   | z.infer<typeof toolArgSchemas[typeof TOOLS.GIT_STATUS]>
   | z.infer<typeof toolArgSchemas[typeof TOOLS.READ_FILE]>
   | z.infer<typeof toolArgSchemas[typeof TOOLS.WRITE_FILE]>
   | z.infer<typeof toolArgSchemas[typeof TOOLS.RUN_COMMAND]>
-  | z.infer<typeof toolArgSchemas[typeof TOOLS.ADD_CONTEXT]>;
+  | z.infer<typeof toolArgSchemas[typeof TOOLS.WEB_SEARCH]>

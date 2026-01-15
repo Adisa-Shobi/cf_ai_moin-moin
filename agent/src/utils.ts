@@ -1,5 +1,6 @@
 // via https://github.com/vercel/ai/blob/main/examples/next-openai/app/api/use-chat-human-in-the-loop/utils.ts
 
+import type { SearchData } from "@mendable/firecrawl-js";
 import type {
   ToolCallOptions, 
   ToolSet,
@@ -121,3 +122,36 @@ export function cleanupMessages(messages: UIMessage[]): UIMessage[] {
   });
 }
 
+export function parseFirecrawlResults(data: SearchData, limit: number = 3) {
+  const items = data.web?.slice(0, limit);
+  
+  if (!items || items.length === 0) return "No results found.";
+
+  const MAX_CHARS_PER_ITEM = limit > 1 ? 4000 : 5000;
+
+  const parsedResults = items.map((item) => {
+    let content = "";
+    let title = "";
+    let url = "";
+
+    // Document (Markdown)
+    if ("markdown" in item && item.markdown) {
+      title = item.metadata?.title || "Untitled";
+      url = item.metadata?.url || "No URL";
+      
+      content = item.markdown.length > MAX_CHARS_PER_ITEM
+        ? `${item.markdown.substring(0, MAX_CHARS_PER_ITEM)}\n...[Truncated]`
+        : item.markdown;
+    } 
+    // SearchResultWeb (Snippet)
+    else if ("description" in item) {
+      title = item.title || "Untitled";
+      url = item.url;
+      content = `(Snippet Only) ${item.description || "No description available"}`;
+    }
+
+    return { title, url, content };
+  });
+
+  return parsedResults;
+}

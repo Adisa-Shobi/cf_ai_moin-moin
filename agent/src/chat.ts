@@ -11,7 +11,7 @@ import {
   type ToolSet,
 } from "ai";
 import { createWorkersAI } from "workers-ai-provider";
-import { createAgentTools, executions } from "./tools";
+import { executions, tools } from "./tools";
 import {
   type AgentEvent,
   type AgentState,
@@ -229,8 +229,6 @@ export class Chat extends AIChatAgent<Env, AgentState> {
     _options?: { abortSignal?: AbortSignal },
   ) {
 
-    const allTools = createAgentTools();
-
     const currentContext = this.state.agentContext ?? [];
 
     const contextBlock =
@@ -249,7 +247,7 @@ export class Chat extends AIChatAgent<Env, AgentState> {
         const processedMessages = await processToolCalls({
           messages: cleanedMessages,
           dataStream: writer,
-          tools: allTools,
+          tools,
           executions,
         });
 
@@ -261,9 +259,9 @@ export class Chat extends AIChatAgent<Env, AgentState> {
 
           messages: convertToModelMessages(processedMessages),
           model,
-          tools: allTools,
+          tools,
           onFinish: onFinish as unknown as StreamTextOnFinishCallback<
-            typeof allTools
+            typeof tools
           >,
           stopWhen: stepCountIs(10),
         });

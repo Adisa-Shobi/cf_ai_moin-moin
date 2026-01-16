@@ -150,7 +150,6 @@ export default function Chat() {
   // Scroll to bottom when messages change
   useEffect(() => {
     agentMessages.length > 0 && scrollToBottom();
-    console.log(`Logged from agent messages useEffect ${agentMessages}`);
   }, [agentMessages, scrollToBottom]);
 
   const pendingToolCallConfirmation = agentMessages.some((m: UIMessage) =>

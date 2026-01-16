@@ -63,7 +63,6 @@ export const createAgentTools = () => {
     const { agent } = getCurrentAgent<Chat>()
 
     if (!agent) return ""
-    console.log(`Currently remotely executing a command: ${agent.state.hostConnectionId}`);
     const hostConnectionId = agent.state.hostConnectionId;
     if (!hostConnectionId) return "Error: No Host CLI connected.";
 

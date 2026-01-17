@@ -2,6 +2,7 @@ import asyncio
 import click
 from synapse.client import SynapseClient
 from synapse.constants import get_base_url
+from synapse.ui import print_welcome_message
 
 @click.group()
 def cli():
@@ -14,6 +15,7 @@ def start(id):
     """
     Connect to the Cloudflare Agent.
     """
+    print_welcome_message()
     base_url = get_base_url()
 
     if not base_url.startswith("http"):

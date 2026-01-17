@@ -2,18 +2,20 @@ import asyncio
 import json
 import websockets
 import requests
-from rich.console import Console
 from rich.logging import RichHandler
+from rich.panel import Panel
+from rich.text import Text
 import logging
 
 from .dispatcher import ToolDispatcher
+from .ui import create_console
 
 # Setup beautiful logging
 logging.basicConfig(
     level="INFO", format="%(message)s", datefmt="[%X]", handlers=[RichHandler()]
 )
 log = logging.getLogger("rich")
-console = Console()
+console = create_console()
 
 class SynapseClient:
     def __init__(self, base_url: str, id: str | None):
@@ -29,7 +31,7 @@ class SynapseClient:
             if (self.session_id):
                 data["session_id"] = self.session_id
             api_url = f"{self.base_url}/api/new-session"
-            console.print(f"[bold green]Requesting {"existing" if self.session_id else "new"} session[/bold green] ")
+            console.print(f"Requesting {"existing" if self.session_id else "new"} session", style="info")
             response = requests.post(api_url, data)
             response.raise_for_status()
             data = response.json()
@@ -51,9 +53,9 @@ class SynapseClient:
         if not self.websocket_url:
             return
 
-        console.print(f"[bold green]Connecting to Synapse Brain...[/bold green]")
+        console.print(f"Connecting to Synapse Brain...", style="info")
         chat_url = f"{self.base_url}?session_id={self.session_id}"
-        console.print(f"[bold green]Connected at:[/bold green] {chat_url}")
+        console.print(f"[success]Connected at:[/success] {chat_url}")
 
         try:
             async for websocket in websockets.connect(self.websocket_url):
@@ -68,7 +70,7 @@ class SynapseClient:
                     continue
                 except asyncio.CancelledError:
                     # Keyboard interrupt happened
-                    console.print("[bold red]🛑 Shutting down gracefully...[/bold red]")
+                    console.print("\n[error]Shutting down gracefully...[/error]")
                     raise  # Re-raise to propagate upward
                 except Exception as e:
                     log.error(f"Unexpected error: {e}")
@@ -86,7 +88,7 @@ class SynapseClient:
             "role": "host"
         }
         await websocket.send(json.dumps(handshake))
-        log.info("🤝 Handshake sent (Role: HOST)")
+        log.info("Handshake sent (Role: HOST)")
 
     async def listen(self, websocket):
         """Infinite loop to handle incoming Agent messages."""
@@ -106,9 +108,15 @@ class SynapseClient:
             tool_args = data.get("arguments")
             tool_call_id = data.get("call_id")
             
-            console.print(f"\n[bold cyan]🤖 Agent Request:[/bold cyan]")
-            console.print(f"   [yellow]Tool:[/yellow] {tool_name}")
-            console.print(f"   [yellow]Args:[/yellow] {tool_args}")
+            # Display incoming request
+            request_text = Text()
+            request_text.append("Tool: ", style="key")
+            request_text.append(f"{tool_name}\n")
+            request_text.append("Args: ", style="key")
+            request_text.append(f"{json.dumps(tool_args, indent=2)}")
+            
+            console.print(Panel(request_text, title="Agent Request", border_style="agent.request", expand=False))
+            console.print() # Add spacing
             
             # Execute the tool
             output = self.dispatcher.dispatch(tool_name, tool_args or {})
@@ -125,9 +133,17 @@ class SynapseClient:
                 "output": output,
             }
             await websocket.send(json.dumps(result))
-            console.print(f"\n[bold green]✅ Result Sent:[/bold green]")
-            console.print(f"   [yellow]Tool:[/yellow] {tool_name}")
-            console.print(f"   [yellow]Status:[/yellow] {status}")
+            
+            # Display result
+            result_style = "success" if status == "success" else "error"
+            result_text = Text()
+            result_text.append("Tool: ", style="key")
+            result_text.append(f"{tool_name}\n")
+            result_text.append("Status: ", style="key")
+            result_text.append(f"{status}", style=result_style)
+            
+            console.print(Panel(result_text, title="Result Sent", border_style=result_style, expand=False))
+            console.print() # Add spacing
 
         elif msg_type in ["cf_agent_mcp_servers", "host_status"]:
             pass

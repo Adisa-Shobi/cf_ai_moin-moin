@@ -39,7 +39,7 @@ interface PendingCall {
 export class Chat extends AIChatAgent<Env, AgentState> {
   pendingToolCalls = new Map<string, PendingCall>();
 
-  onStateUpdate(state: AgentState, _source: Connection | "server"): void {
+  onStateUpdate(state: AgentState, source: Connection | "server"): void {
     
     const isLive = this.isConnectionLive(this.state.hostConnectionId)
     const status = isLive ? "online" : "offline";
@@ -51,6 +51,8 @@ export class Chat extends AIChatAgent<Env, AgentState> {
         context: state.agentContext,
       });
     }
+
+    super.onStateUpdate(state, source);
   }
 
   isConnectionLive(connectionId: string | undefined) {
@@ -79,11 +81,11 @@ export class Chat extends AIChatAgent<Env, AgentState> {
       });
       return super.onConnect(connection, ctx);
     } else if (role === "guest") {
-      const newGuestConnectionIds = this.state.guestConnectionIds ?? [];
+      const guestConnectionIds = this.state.guestConnectionIds ?? [];
 
       this.setState({
         ...this.state,
-        guestConnectionIds: [...newGuestConnectionIds, connection.id],
+        guestConnectionIds: [...guestConnectionIds, connection.id],
       });
 
       const hostIsLive =
@@ -208,7 +210,6 @@ export class Chat extends AIChatAgent<Env, AgentState> {
               updatedAt: Date.now(),
             });
           }
-
           pending.resolve(msg.output);
         }
 
@@ -251,13 +252,17 @@ export class Chat extends AIChatAgent<Env, AgentState> {
           executions,
         });
 
+        this.messages = processedMessages;
+
         const result = streamText({
           system: `You are a specialized AI Developer Agent with tools available to you.
-             You can use those tools to run commands remotely on a machine where you might 
-            be asked to edit code or similar use cases. These are the files the user might 
-            be referring to in their messages ${contextBlock}`,
+            You can use those tools to run commands remotely on a machine where you might 
+            be asked to edit code or similar use cases. Ensure to chose to the right tool for the users direct/implied request. 
+            Each time you run a tool that has informative output make sure to repeat the 
+            output to the users ensuring that they are kept in the loop of what is going on. ${contextBlock ?? `These are the files the user might 
+            be referring to in their messages, use them for context ${contextBlock}`}`,
 
-          messages: convertToModelMessages(processedMessages),
+          messages: await convertToModelMessages(processedMessages),
           model,
           tools,
           onFinish: onFinish as unknown as StreamTextOnFinishCallback<
@@ -271,7 +276,5 @@ export class Chat extends AIChatAgent<Env, AgentState> {
     });
 
     return createUIMessageStreamResponse({ stream });
-  }
-
-  
+  } 
 }

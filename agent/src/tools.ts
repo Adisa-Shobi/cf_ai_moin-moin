@@ -4,11 +4,13 @@ import { getCurrentAgent } from "agents";
 import { type ToolSet, tool } from "ai";
 import type { Chat } from "./chat";
 import { 
+  type runCommandArgs, 
   TOOLS, 
   type ToolArguments, 
   type ToolNameArgs, 
   toolArgSchemas, 
-  type webSearchArgs
+  type webSearchArgs,
+  type writeFileArgs
 } from "./types";
 import { parseFirecrawlResults } from './utils';
 
@@ -41,17 +43,11 @@ export const createAgentTools = () => {
     [TOOLS.WRITE_FILE]: tool({
       description: "Write or overwrite content to a file.",
       inputSchema: toolArgSchemas[TOOLS.WRITE_FILE],
-      execute: async (args) => {
-        return await executeRemoteTool("write_file", args);
-      },
     }),
 
     [TOOLS.RUN_COMMAND]: tool({
       description: "Execute a generic shell command (e.g., ls, mkdir, pytest).",
       inputSchema: toolArgSchemas[TOOLS.RUN_COMMAND],
-      execute: async (args) => {
-        return await executeRemoteTool("run_command", args);
-      },
     }),
     [TOOLS.WEB_SEARCH]: tool({
       description: "Search the web using any query of you choice",
@@ -67,7 +63,6 @@ export const createAgentTools = () => {
     const { agent } = getCurrentAgent<Chat>()
 
     if (!agent) return ""
-    console.log(`Currently remotely executing a command: ${agent.state.hostConnectionId}`);
     const hostConnectionId = agent.state.hostConnectionId;
     if (!hostConnectionId) return "Error: No Host CLI connected.";
 
@@ -209,5 +204,11 @@ export const executions = {
     } catch (_e) {
       return `Search failed`;
     }
-  }
+  },
+  [TOOLS.WRITE_FILE]: async (args: writeFileArgs) => {
+    return await executeRemoteTool("write_file", args);
+  },
+  [TOOLS.RUN_COMMAND]: async (args: runCommandArgs) => {
+    return await executeRemoteTool("run_command", args);
+  },
 };

@@ -108,9 +108,13 @@ export type readFileArgs = z.infer<typeof toolArgSchemas[typeof TOOLS.READ_FILE]
 
 export type webSearchArgs = z.infer<typeof toolArgSchemas[typeof TOOLS.WEB_SEARCH]>
 
+export type writeFileArgs = z.infer<typeof toolArgSchemas[typeof TOOLS.WRITE_FILE]>
+
+export type runCommandArgs = z.infer<typeof toolArgSchemas[typeof TOOLS.RUN_COMMAND]>
+
 export type ToolArguments = 
   | z.infer<typeof toolArgSchemas[typeof TOOLS.GIT_STATUS]>
-  | z.infer<typeof toolArgSchemas[typeof TOOLS.READ_FILE]>
-  | z.infer<typeof toolArgSchemas[typeof TOOLS.WRITE_FILE]>
-  | z.infer<typeof toolArgSchemas[typeof TOOLS.RUN_COMMAND]>
-  | z.infer<typeof toolArgSchemas[typeof TOOLS.WEB_SEARCH]>
+  | readFileArgs
+  | writeFileArgs
+  | runCommandArgs
+  | webSearchArgs

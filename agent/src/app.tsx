@@ -33,11 +33,10 @@ import {
 import type { tools } from "./tools";
 import { TOOLS } from "./types";
 
-// List of tools that require human confirmation
-// NOTE: this should match the tools that don't have execute functions in tools.ts
-// TODO: Configure tools with proper permissions
 const toolsRequiringConfirmation: (keyof typeof tools)[] = [
-  TOOLS.WEB_SEARCH
+  TOOLS.WEB_SEARCH,
+  TOOLS.WRITE_FILE,
+  TOOLS.RUN_COMMAND
 ];
 
 export default function Chat() {
@@ -151,7 +150,6 @@ export default function Chat() {
   // Scroll to bottom when messages change
   useEffect(() => {
     agentMessages.length > 0 && scrollToBottom();
-    console.log(`Logged from agent messages useEffect ${agentMessages}`);
   }, [agentMessages, scrollToBottom]);
 
   const pendingToolCallConfirmation = agentMessages.some((m: UIMessage) =>

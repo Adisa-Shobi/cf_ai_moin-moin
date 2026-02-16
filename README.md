@@ -4,6 +4,18 @@
 
 This project implements a hybrid AI agent architecture where the **"Brain"** (reasoning, state management, LLM inference) lives on the Edge using **Cloudflare Durable Objects**, while the **"Hands"** (file editing, shell execution) live on your local machine via a secure **Python CLI**.
 
+## Screenshots
+
+### Host CLI
+The Python CLI connects to the cloud agent, displays tool requests, and executes approved commands locally.
+
+![Host CLI](cli.png)
+
+### Web Interface
+The chat UI lets you interact with the agent, view tool calls, and approve sensitive operations.
+
+![Web Interface](agent.png)
+
 ## Architecture
 
 The system consists of two main components connected via WebSockets:
@@ -40,7 +52,13 @@ cd agent
 pnpm install
 ```
 
-Configure your environment variables. You may need to create a `.dev.vars` file or set secrets in Cloudflare for `FIRECRAWL_API_KEY`.
+Configure your environment variables by copying the example file and adding your keys:
+
+```bash
+cp .dev.vars.example .dev.vars
+```
+
+Edit `.dev.vars` and add your [Firecrawl API key](https://www.firecrawl.dev/).
 
 Start the development server:
 
@@ -52,17 +70,18 @@ pnpm dev
 
 ### 2. Host CLI Setup (The "Hands")
 
-Navigate to the `cli` directory:
+Navigate to the `cli` directory and set up the Python environment:
 
 ```bash
 cd cli
+poetry env activate
 poetry install
 ```
 
 ## Usage Guide
 
 1.  **Start the Host CLI:**
-    In your terminal, navigate to the `cli` directory and run the Python CLI. This tool will initialize a connection and print a unique URL.
+    In your terminal, from the `cli` directory, run the Python CLI. This will initialize a connection and print a unique URL.
 
     ```bash
     poetry run synapse start
@@ -80,6 +99,15 @@ poetry install
     *   You will see a prompt in the Web UI asking for approval.
     *   Click **YES** to allow the command to run.
     *   The CLI executes the command locally and sends the result back to the Agent.
+
+5.  **Reconnect to an Existing Session:**
+    If your CLI disconnects or you close the terminal, you can reconnect to the same chat session. The reconnect command is displayed at the top of the chat interface in the Web UI:
+
+    ```bash
+    poetry run synapse start --id <session-id>
+    ```
+
+    This resumes your previous conversation and restores the connection between the Agent and your local machine.
 
 
 ## Known Issues

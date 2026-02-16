@@ -1,0 +1,3 @@
+# Firecrawl API key for web search capabilities
+# Get one at https://www.firecrawl.dev/
+FIRECRAWL_API_KEY="your-firecrawl-api-key"
